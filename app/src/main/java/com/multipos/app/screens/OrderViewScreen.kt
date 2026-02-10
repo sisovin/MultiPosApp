@@ -20,6 +20,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.multipos.app.viewmodel.OrderViewModel
 
 // suppress deprecated icon usage across Compose versions
 @Suppress("DEPRECATION")
@@ -45,14 +47,15 @@ data class OrderItem(
 )
 
 @Composable
-fun OrderViewScreen(tableId: Int?, onBack: () -> Unit) {
+fun OrderViewScreen(tableId: Int?, onBack: () -> Unit, vm: OrderViewModel = viewModel()) {
     // responsive breakpoint
     val configuration = LocalConfiguration.current
     val isCompact = configuration.screenWidthDp < 600
 
-    var category by remember { mutableStateOf("Popular") }
-    var orderItems by remember { mutableStateOf<List<OrderItem>>(emptyList()) }
-    var orderPanelExpanded by remember { mutableStateOf(true) }
+    // ViewModel-backed state
+    val category by vm.category.collectAsState()
+    val orderItems by vm.orderItems.collectAsState()
+    val orderPanelExpanded by vm.panelExpanded.collectAsState()
 
     val menuCategories = listOf("Popular", "Appetizers", "Mains", "Drinks", "Desserts")
 
@@ -83,31 +86,16 @@ fun OrderViewScreen(tableId: Int?, onBack: () -> Unit) {
         menuItems.filter { it.category == category }
     }
 
-    val addItem = { item: MenuItem ->
-        val existing = orderItems.find { it.id == item.id }
-        if (existing != null) {
-            orderItems = orderItems.map {
-                if (it.id == item.id) it.copy(quantity = it.quantity + 1) else it
-            }
-        } else {
-            orderItems = orderItems + OrderItem(item.id, item.name, item.price, item.category, 1)
-        }
-        orderPanelExpanded = true
-    }
+    val addItem = { item: MenuItem -> vm.addItem(item) }
 
-    val updateQty = { id: String, delta: Int ->
-        orderItems = orderItems.map {
-            if (it.id == id) it.copy(quantity = maxOf(0, it.quantity + delta)) else it
-        }.filter { it.quantity > 0 }
-    }
+    val updateQty = { id: String, delta: Int -> vm.updateQty(id, delta) }
 
-    val removeItem = { id: String ->
-        orderItems = orderItems.filter { it.id != id }
-    }
+    val removeItem = { id: String -> vm.removeItem(id) }
 
-    val subtotal = orderItems.sumOf { it.price * it.quantity }
-    val tax = subtotal * 0.1
-    val total = subtotal + tax
+    // Totals derived in VM as StateFlows — read them here
+    val subtotal by vm.subtotal.collectAsState()
+    val tax by vm.tax.collectAsState()
+    val total by vm.total.collectAsState()
 
     if (isCompact) {
         // Mobile: menu on top, collapsible order panel at bottom
@@ -146,7 +134,7 @@ fun OrderViewScreen(tableId: Int?, onBack: () -> Unit) {
                 menuCategories.forEach { cat ->
                     Tab(
                         selected = category == cat,
-                        onClick = { category = cat },
+                        onClick = { vm.setCategory(cat) },
                         text = { Text(cat, style = MaterialTheme.typography.labelSmall) }
                     )
                 }
@@ -181,7 +169,7 @@ fun OrderViewScreen(tableId: Int?, onBack: () -> Unit) {
                         // Drag handle / header
                         Row(modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { orderPanelExpanded = !orderPanelExpanded }
+                            .clickable { vm.togglePanel() }
                             .padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Box(modifier = Modifier
                                 .size(width = 40.dp, height = 4.dp)
@@ -290,7 +278,7 @@ fun OrderViewScreen(tableId: Int?, onBack: () -> Unit) {
                     menuCategories.forEach { cat ->
                         Tab(
                             selected = category == cat,
-                            onClick = { category = cat },
+                            onClick = { vm.setCategory(cat) },
                             text = { Text(cat, style = MaterialTheme.typography.labelSmall) }
                         )
                     }

@@ -1,6 +1,7 @@
 package com.multipos.app.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -13,11 +14,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.multipos.app.viewmodel.InventoryViewModel
 
 data class InventoryItem(
     val id: String,
@@ -31,24 +33,14 @@ data class InventoryItem(
 )
 
 @Composable
-fun InventoryViewScreen() {
-    var search by remember { mutableStateOf("") }
+fun InventoryViewScreen(vm: InventoryViewModel = viewModel()) {
+    val search by vm.search.collectAsState()
+    val filtered by vm.filtered.collectAsState()
+    val lowStock by vm.lowStock.collectAsState()
+    val inventory by vm.inventory.collectAsState()
 
-    val inventory = listOf(
-        InventoryItem("i1", "Salmon Fillet", "Proteins", 3, "kg", 5, 24.0, "2h ago"),
-        InventoryItem("i2", "Ribeye Steak", "Proteins", 12, "pcs", 8, 18.5, "1h ago"),
-        InventoryItem("i3", "Chicken Breast", "Proteins", 20, "kg", 10, 8.0, "3h ago"),
-        InventoryItem("i4", "Romaine Lettuce", "Produce", 8, "heads", 5, 2.5, "4h ago"),
-        InventoryItem("i5", "Tomatoes", "Produce", 15, "kg", 8, 3.0, "2h ago"),
-        InventoryItem("i6", "Pasta (Spaghetti)", "Dry Goods", 25, "kg", 10, 2.0, "1d ago"),
-        InventoryItem("i7", "Olive Oil", "Dry Goods", 6, "L", 4, 12.0, "2d ago"),
-        InventoryItem("i8", "Espresso Beans", "Beverages", 4, "kg", 5, 22.0, "6h ago"),
-        InventoryItem("i9", "House Red Wine", "Beverages", 18, "bottles", 12, 8.0, "1d ago"),
-        InventoryItem("i10", "Craft IPA", "Beverages", 24, "cans", 12, 4.0, "5h ago")
-    )
-
-    val filtered = inventory.filter { it.name.contains(search, ignoreCase = true) }
-    val lowStock = inventory.filter { it.stock <= it.minStock }
+    val configuration = LocalConfiguration.current
+    val isCompact = configuration.screenWidthDp < 600
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         // Header
@@ -74,39 +66,171 @@ fun InventoryViewScreen() {
         // Search
         OutlinedTextField(
             value = search,
-            onValueChange = { search = it },
+            onValueChange = { vm.setSearch(it) },
             placeholder = { Text("Search inventory...") },
             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = "Search") },
             modifier = Modifier.fillMaxWidth()
         )
 
-        // Table
-        Card(modifier = Modifier.fillMaxWidth().weight(1f)) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                // Header
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    TableHeader("Item", Modifier.weight(1f))
-                    TableHeader("Category", Modifier.width(100.dp))
-                    TableHeader("Stock", Modifier.width(80.dp))
-                    TableHeader("Min", Modifier.width(60.dp))
-                    TableHeader("Unit Cost", Modifier.width(80.dp))
-                    TableHeader("Updated", Modifier.width(80.dp))
+        if (isCompact) {
+            // Mobile: card list with expandable rows
+            LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(filtered) { item ->
+                    InventoryCard(item = item)
                 }
+            }
+        } else {
+            // Wide: table-style layout, allow horizontal scrolling when needed
+            Card(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // Header (horizontally scrollable)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        TableHeader("Item", Modifier.width(300.dp))
+                        TableHeader("Category", Modifier.width(140.dp))
+                        TableHeader("Stock", Modifier.width(100.dp))
+                        TableHeader("Min", Modifier.width(80.dp))
+                        TableHeader("Unit Cost", Modifier.width(120.dp))
+                        TableHeader("Updated", Modifier.width(120.dp))
+                    }
 
-                // Rows
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(filtered) { item ->
-                        InventoryRow(item)
+                    // Rows
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        items(filtered) { item ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState())
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Item column wider
+                                Column(modifier = Modifier.width(300.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Icon(Icons.Filled.Inventory, contentDescription = "Item", modifier = Modifier.size(16.dp))
+                                        Text(item.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                                        if (item.stock <= item.minStock) {
+                                            Box(modifier = Modifier
+                                                .background(MaterialTheme.colorScheme.tertiaryContainer, CircleShape)
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)) {
+                                                Text("LOW", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Text(item.category, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(140.dp))
+
+                                Text(
+                                    "${item.stock} ${item.unit}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (item.stock <= item.minStock) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.width(100.dp)
+                                )
+
+                                Text(item.minStock.toString(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(80.dp))
+
+                                Text("$${item.cost.format(2)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.width(120.dp))
+
+                                Text(item.lastUpdated, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(120.dp))
+                            }
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun InventoryCard(item: InventoryItem, vm: InventoryViewModel = androidx.lifecycle.viewmodel.compose.viewModel()) {
+    var expanded by remember { mutableStateOf(false) }
+    var showEdit by remember { mutableStateOf(false) }
+    var showReceive by remember { mutableStateOf(false) }
+    var editValue by remember { mutableStateOf(item.stock.toString()) }
+    var receiveValue by remember { mutableStateOf("1") }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { expanded = !expanded },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Filled.Inventory, contentDescription = "Item", modifier = Modifier.size(18.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(item.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                    Text(item.category, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("${item.stock} ${item.unit}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                    Text("$${item.cost.format(2)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+
+            if (expanded) {
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Min: ${item.minStock}", style = MaterialTheme.typography.labelSmall)
+                    Text("Updated: ${item.lastUpdated}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.weight(1f))
+                    IconButton(onClick = { editValue = item.stock.toString(); showEdit = true }) { Icon(Icons.Filled.Edit, contentDescription = "Edit") }
+                    IconButton(onClick = { receiveValue = "1"; showReceive = true }) { Icon(Icons.Filled.AddBox, contentDescription = "Receive") }
+                }
+            }
+        }
+    }
+
+    if (showEdit) {
+        AlertDialog(
+            onDismissRequest = { showEdit = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    val newStock = editValue.toIntOrNull()
+                    if (newStock != null) vm.updateStock(item.id, newStock)
+                    showEdit = false
+                }) { Text("Save") }
+            },
+            dismissButton = { TextButton(onClick = { showEdit = false }) { Text("Cancel") } },
+            title = { Text("Edit stock") },
+            text = {
+                Column {
+                    Text("Set the new stock for ${item.name}")
+                    OutlinedTextField(value = editValue, onValueChange = { editValue = it }, singleLine = true)
+                }
+            }
+        )
+    }
+
+    if (showReceive) {
+        AlertDialog(
+            onDismissRequest = { showReceive = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    val qty = receiveValue.toIntOrNull() ?: 0
+                    if (qty > 0) vm.receiveStock(item.id, qty)
+                    showReceive = false
+                }) { Text("Receive") }
+            },
+            dismissButton = { TextButton(onClick = { showReceive = false }) { Text("Cancel") } },
+            title = { Text("Receive stock") },
+            text = {
+                Column {
+                    Text("Add received quantity for ${item.name}")
+                    OutlinedTextField(value = receiveValue, onValueChange = { receiveValue = it }, singleLine = true)
+                }
+            }
+        )
     }
 }
 
@@ -121,79 +245,9 @@ private fun TableHeader(text: String, modifier: Modifier = Modifier) {
             textAlign = TextAlign.Start
         )
         Spacer(Modifier.width(4.dp))
-        Icon(Icons.Filled.Sort, contentDescription = "Sort", modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-@Composable
-private fun InventoryRow(item: InventoryItem) {
-    val isLow = item.stock <= item.minStock
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Item
-        Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(
-                Icons.Filled.Inventory,
-                contentDescription = "Item",
-                tint = if (isLow) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(16.dp)
-            )
-            Text(item.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-            if (isLow) {
-                Box(
-                    modifier = Modifier
-                        .background(MaterialTheme.colorScheme.tertiaryContainer, CircleShape)
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Text("LOW", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
-                }
-            }
-        }
-
-        // Category
-        Text(item.category, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(100.dp))
-
-        // Stock
-        Text(
-            "${item.stock} ${item.unit}",
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.SemiBold,
-            color = if (isLow) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.width(80.dp),
-            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-        )
-
-        // Min
-        Text(
-            item.minStock.toString(),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(60.dp),
-            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-        )
-
-        // Unit Cost
-        Text(
-            "$${item.cost.format(2)}",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.width(80.dp),
-            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-        )
-
-        // Updated
-        Text(
-            item.lastUpdated,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(80.dp)
-        )
+        // Suppress deprecation warning for Sort icon
+        @Suppress("Deprecation")
+        Icon(imageVector = Icons.Filled.Sort, contentDescription = "Sort", modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
