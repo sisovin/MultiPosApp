@@ -63,6 +63,9 @@ dependencies {
     // Activity Compose provides ComponentActivity.setContent
     implementation 'androidx.activity:activity-compose:1.8.0'
 
+    // DataStore Preferences
+    implementation 'androidx.datastore:datastore-preferences:1.1.0'
+
     // Tooling for Compose preview and debugging
     debugImplementation 'androidx.compose.ui:ui-tooling'
     debugImplementation 'androidx.compose.ui:ui-test-manifest'

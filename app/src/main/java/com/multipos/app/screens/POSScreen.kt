@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.multipos.app.components.POSSidebar
 import com.multipos.app.components.POSView
+import com.multipos.app.screens.SettingsScreen
 
 @Composable
 fun POSScreen(
@@ -46,7 +47,7 @@ fun POSScreen(
                 POSView.INVENTORY -> InventoryViewScreen()
                 POSView.BILLING -> BillingViewScreen()
                 POSView.REPORTS -> ReportsViewScreen()
-                POSView.SETTINGS -> Text("Settings", modifier = Modifier.padding(16.dp))
+                POSView.SETTINGS -> SettingsScreen(username = username, role = role, onSignOut = onLogout)
             }
         }
     }
