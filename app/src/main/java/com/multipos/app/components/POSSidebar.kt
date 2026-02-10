@@ -9,14 +9,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.multipos.app.components.NavItem
-import com.multipos.app.components.POSView
+
+// suppress deprecated icon usage (Icons.Filled.Logout) on platforms where AutoMirrored isn't available
+@Suppress("DEPRECATION")
+private val logoutIcon = Icons.Filled.Logout
 
 @Composable
 fun POSSidebar(
@@ -29,6 +31,14 @@ fun POSSidebar(
     collapsed: Boolean,
     onToggleCollapse: () -> Unit
 ) {
+    // Internal collapsed state: default to expanded (false) when user is logged in (username non-empty)
+    // We keep a saveable state keyed by username so that after login the sidebar shows expanded
+    val internalCollapsedKey = username.ifEmpty { "__anon__" }
+    var internalCollapsed by rememberSaveable(internalCollapsedKey) {
+        // If username is non-empty (user is logged in), initialize to false (expanded)
+        mutableStateOf(if (username.isNotBlank()) false else collapsed)
+    }
+
     val navItems = listOf(
         NavItem(POSView.DASHBOARD, "Dashboard", Icons.Filled.GridView),
         NavItem(POSView.TABLES, "Tables", Icons.Filled.RestaurantMenu),
@@ -41,7 +51,7 @@ fun POSSidebar(
 
     Column(
         modifier = Modifier
-            .width(if (collapsed) 64.dp else 224.dp)
+            .width(if (internalCollapsed) 64.dp else 224.dp)
             .fillMaxHeight()
             .background(MaterialTheme.colorScheme.surfaceVariant)
     ) {
@@ -65,7 +75,7 @@ fun POSSidebar(
                     tint = MaterialTheme.colorScheme.primary
                 )
             }
-            AnimatedVisibility(visible = !collapsed) {
+            AnimatedVisibility(visible = !internalCollapsed) {
                 Column(modifier = Modifier.padding(start = 8.dp)) {
                     Text(
                         text = "MultiPOS",
@@ -83,9 +93,13 @@ fun POSSidebar(
                 }
             }
             Spacer(modifier = Modifier.weight(1f))
-            IconButton(onClick = onToggleCollapse) {
+            IconButton(onClick = {
+                // toggle internal state and inform parent
+                internalCollapsed = !internalCollapsed
+                onToggleCollapse()
+            }) {
                 Icon(
-                    imageVector = if (collapsed) Icons.Filled.ChevronRight else Icons.Filled.ChevronLeft,
+                    imageVector = if (internalCollapsed) Icons.Filled.ChevronRight else Icons.Filled.ChevronLeft,
                     contentDescription = "Toggle sidebar"
                 )
             }
@@ -97,7 +111,7 @@ fun POSSidebar(
                 NavigationButton(
                     item = item,
                     isSelected = currentView == item.view,
-                    collapsed = collapsed,
+                    collapsed = internalCollapsed,
                     onClick = { onNavigate(item.view) }
                 )
             }
@@ -123,7 +137,7 @@ fun POSSidebar(
                     color = MaterialTheme.colorScheme.onSecondary
                 )
             }
-            AnimatedVisibility(visible = !collapsed) {
+            AnimatedVisibility(visible = !internalCollapsed) {
                 Column(modifier = Modifier.padding(start = 8.dp).weight(1f)) {
                     Text(
                         text = username,
@@ -140,7 +154,7 @@ fun POSSidebar(
             }
             IconButton(onClick = onLogout) {
                 Icon(
-                    imageVector = Icons.Filled.Logout,
+                    imageVector = logoutIcon,
                     contentDescription = "Logout",
                     tint = MaterialTheme.colorScheme.error
                 )

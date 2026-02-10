@@ -3,6 +3,7 @@ package com.multipos.app.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -12,8 +13,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.tooling.preview.Preview
 
 data class Stat(
     val label: String,
@@ -37,13 +41,21 @@ data class Alert(
     val type: String // "warning" or "danger"
 )
 
+// suppress the deprecated icon usage in one place to avoid the deprecation warning
+@Suppress("DEPRECATION")
+private val trendingUpIcon = Icons.Filled.TrendingUp
+
 @Composable
 fun DashboardViewScreen() {
+    val configuration = LocalConfiguration.current
+    val screenWidthDp = configuration.screenWidthDp
+    val isCompact = screenWidthDp < 600
+
     val stats = listOf(
         Stat("Today's Sales", "$2,847.50", "+12.5%", Icons.Filled.AttachMoney, MaterialTheme.colorScheme.primary),
         Stat("Orders", "47", "+8", Icons.Filled.ShoppingCart, MaterialTheme.colorScheme.secondary),
         Stat("Active Tables", "12/20", "", Icons.Filled.People, MaterialTheme.colorScheme.tertiary),
-        Stat("Avg. Ticket", "$60.58", "+5.2%", Icons.Filled.TrendingUp, MaterialTheme.colorScheme.primary)
+        Stat("Avg. Ticket", "$60.58", "+5.2%", trendingUpIcon, MaterialTheme.colorScheme.primary)
     )
 
     val recentOrders = listOf(
@@ -66,40 +78,82 @@ fun DashboardViewScreen() {
             Text("Real-time overview", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
-        // Stats
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            stats.forEach { stat ->
-                StatCard(stat, modifier = Modifier.weight(1f))
+        // Stats - responsive: horizontal scroll on small screens, grid-like weights on large screens
+        if (isCompact) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(stats) { stat ->
+                    StatCard(stat, modifier = Modifier.width(220.dp).height(120.dp))
+                }
+            }
+        } else {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                stats.forEach { stat ->
+                    StatCard(stat, modifier = Modifier.weight(1f).height(120.dp))
+                }
             }
         }
 
-        Row(modifier = Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            // Recent Orders
-            Card(modifier = Modifier.weight(2f).fillMaxHeight()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Recent Orders", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(8.dp))
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(recentOrders) { order ->
-                            OrderItem(order)
+        // Main content - stack on compact, side-by-side on wide
+        if (isCompact) {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxSize()) {
+                // Recent Orders (full width)
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Recent Orders", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(8.dp))
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(recentOrders) { order ->
+                                OrderItem(order)
+                            }
                         }
                     }
                 }
-            }
 
-            // Alerts and Quick Stats
-            Card(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text("Alerts", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    alerts.forEach { alert ->
-                        AlertItem(alert)
+                // Alerts and Quick Stats (full width)
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text("Alerts", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        alerts.forEach { alert ->
+                            AlertItem(alert)
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        Text("Quick Stats", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        QuickStat("Table Occupancy", 0.6f, "60%")
+                        QuickStat("Daily Target", 0.71f, "71%")
                     }
+                }
+            }
+        } else {
+            Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                // Recent Orders
+                Card(modifier = Modifier.weight(2f).fillMaxHeight()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Recent Orders", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(8.dp))
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(recentOrders) { order ->
+                                OrderItem(order)
+                            }
+                        }
+                    }
+                }
 
-                    Spacer(Modifier.height(16.dp))
+                // Alerts and Quick Stats
+                Card(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text("Alerts", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        alerts.forEach { alert ->
+                            AlertItem(alert)
+                        }
 
-                    Text("Quick Stats", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    QuickStat("Table Occupancy", 0.6f, "60%")
-                    QuickStat("Daily Target", 0.71f, "71%")
+                        Spacer(Modifier.height(16.dp))
+
+                        Text("Quick Stats", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        QuickStat("Table Occupancy", 0.6f, "60%")
+                        QuickStat("Daily Target", 0.71f, "71%")
+                    }
                 }
             }
         }
@@ -109,32 +163,48 @@ fun DashboardViewScreen() {
 @Composable
 private fun StatCard(stat: Stat, modifier: Modifier = Modifier) {
     Card(modifier = modifier) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Icon(stat.icon, contentDescription = stat.label, tint = stat.color)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // icon with circular background for better legibility on small screens
+                    Box(modifier = Modifier
+                        .size(36.dp)
+                        .background(color = stat.color.copy(alpha = 0.12f), shape = MaterialTheme.shapes.small), contentAlignment = Alignment.Center) {
+                        Icon(stat.icon, contentDescription = stat.label, tint = stat.color)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Column {
+                        Text(stat.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stat.value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    }
+                }
+
                 if (stat.change.isNotEmpty()) {
                     Text(
                         stat.change,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.background(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.shapes.small).padding(horizontal = 4.dp, vertical = 2.dp)
+                        modifier = Modifier.background(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.shapes.small).padding(horizontal = 6.dp, vertical = 4.dp)
                     )
                 }
             }
-            Text(stat.value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text(stat.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
 @Composable
 private fun OrderItem(order: RecentOrder) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(order.id, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(order.table, style = MaterialTheme.typography.bodyMedium)
-                Text("${order.items} items", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                // Combine table + items into a single line to prevent wrapping on small screens
+                Text(
+                    "${order.table} • ${order.items} items",
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -154,7 +224,7 @@ private fun OrderItem(order: RecentOrder) {
 }
 
 @Composable
-private fun getStatusColor(status: String): androidx.compose.ui.graphics.Color {
+private fun getStatusColor(status: String): Color {
     return when (status) {
         "Preparing" -> MaterialTheme.colorScheme.tertiary
         "Served" -> MaterialTheme.colorScheme.primary
@@ -165,7 +235,7 @@ private fun getStatusColor(status: String): androidx.compose.ui.graphics.Color {
 }
 
 @Composable
-private fun getStatusBackground(status: String): androidx.compose.ui.graphics.Color {
+private fun getStatusBackground(status: String): Color {
     return when (status) {
         "Preparing" -> MaterialTheme.colorScheme.tertiaryContainer
         "Served" -> MaterialTheme.colorScheme.primaryContainer
@@ -189,16 +259,32 @@ private fun AlertItem(alert: Alert) {
 
 @Composable
 private fun QuickStat(label: String, progress: Float, value: String) {
-    Column {
+    Column(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(value, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
         }
         Spacer(Modifier.height(4.dp))
         LinearProgressIndicator(
-            progress = progress,
+            progress = { progress },
             modifier = Modifier.fillMaxWidth().height(4.dp),
             color = if (label == "Table Occupancy") MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary
         )
+    }
+}
+
+@Preview(name = "Dashboard - Phone", widthDp = 360, heightDp = 800, showBackground = true)
+@Composable
+private fun DashboardPreviewPhone() {
+    MaterialTheme {
+        DashboardViewScreen()
+    }
+}
+
+@Preview(name = "Dashboard - Tablet", widthDp = 900, heightDp = 1200, showBackground = true)
+@Composable
+private fun DashboardPreviewTablet() {
+    MaterialTheme {
+        DashboardViewScreen()
     }
 }

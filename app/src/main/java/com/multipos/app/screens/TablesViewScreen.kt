@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -13,10 +15,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 
 enum class TableStatus {
     AVAILABLE, OCCUPIED, BILLING, RESERVED
@@ -69,17 +76,52 @@ fun TablesViewScreen(onSelectTable: (Int) -> Unit) {
         }
 
         // Filters
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(null to "All", TableStatus.AVAILABLE to "Available", TableStatus.OCCUPIED to "Occupied", TableStatus.BILLING to "Billing", TableStatus.RESERVED to "Reserved").forEach { (status, label) ->
-                OutlinedButton(
+        // Use a horizontally scrollable row so all filter chips are accessible without wrapping
+        val filterList = listOf(
+            null to "All",
+            TableStatus.AVAILABLE to "Available",
+            TableStatus.OCCUPIED to "Occupied",
+            TableStatus.BILLING to "Billing",
+            TableStatus.RESERVED to "Reserved"
+        )
+
+        // remember LazyRow state so we can auto-scroll to a selected chip
+        val listState = rememberLazyListState()
+
+        // when filter changes, scroll the LazyRow so the selected chip is visible
+        LaunchedEffect(filter) {
+            val index = filterList.indexOfFirst { it.first == filter }
+            if (index >= 0) {
+                listState.animateScrollToItem(index)
+            }
+        }
+
+        LazyRow(
+            state = listState,
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(horizontal = 4.dp)
+        ) {
+            itemsIndexed(filterList) { _, pair ->
+                val status = pair.first
+                val label = pair.second
+                val isSelected = filter == status
+
+                FilterChip(
+                    selected = isSelected,
                     onClick = { filter = status },
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = if (filter == status) MaterialTheme.colorScheme.primary else Color.Transparent,
-                        contentColor = if (filter == status) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                    )
-                ) {
-                    Text("$label (${counts[status]})", style = MaterialTheme.typography.labelSmall)
-                }
+                    label = {
+                        Text(
+                            "$label (${counts[status] ?: 0})",
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    modifier = Modifier.defaultMinSize(minWidth = 72.dp),
+                    leadingIcon = null,
+                    colors = FilterChipDefaults.filterChipColors()
+                )
             }
         }
 
